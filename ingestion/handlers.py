@@ -22,6 +22,8 @@ from repositories import (
     upsert_device,
 )
 from utils import normalize_timestamp
+import cloud_publisher
+import supabase_repositories as sr
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,20 @@ def handle_device_connected(*, topic: str, data: dict[str, Any], received_ts: st
         )
         conn.commit()
 
+    def _cloud_sync(conn):
+        sr.upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_ONLINE)
+        sr.insert_event(
+            conn=conn,
+            device_id=device_id,
+            session_id=None,
+            event_type=EVENT_DEVICE_CONNECTED,
+            event_ts=event_ts,
+            received_ts=received_ts,
+            topic=topic,
+            payload_json=payload_json,
+        )
+
+    cloud_publisher.enqueue(_cloud_sync)
     logger.info("device_connected | device=%s | event_ts=%s", device_id, event_ts)
 
 
@@ -83,6 +99,26 @@ def handle_session_started(*, topic: str, data: dict[str, Any], received_ts: str
         )
         conn.commit()
 
+    def _cloud_sync(conn):
+        sr.upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_ONLINE)
+        sr.create_session_if_missing(
+            conn=conn,
+            session_id=session_id,
+            device_id=device_id,
+            started_at=event_ts,
+        )
+        sr.insert_event(
+            conn=conn,
+            device_id=device_id,
+            session_id=session_id,
+            event_type=EVENT_SESSION_STARTED,
+            event_ts=event_ts,
+            received_ts=received_ts,
+            topic=topic,
+            payload_json=payload_json,
+        )
+
+    cloud_publisher.enqueue(_cloud_sync)
     logger.info("session_started | device=%s | session=%s | event_ts=%s", device_id, session_id, event_ts)
 
 
@@ -136,6 +172,39 @@ def handle_switch_changed(*, topic: str, data: dict[str, Any], received_ts: str,
         increment_session_interaction_count(conn=conn, session_id=session_id)
         conn.commit()
 
+    # Ensure session_row exists in Supabase before inserting child rows.
+    session_was_missing = session_row is None
+
+    def _cloud_sync(conn):
+        sr.upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_ONLINE)
+        if session_was_missing:
+            sr.create_session_if_missing(
+                conn=conn,
+                session_id=session_id,
+                device_id=device_id,
+                started_at=event_ts,
+            )
+        sr.insert_event(
+            conn=conn,
+            device_id=device_id,
+            session_id=session_id,
+            event_type=EVENT_SWITCH_CHANGED,
+            event_ts=event_ts,
+            received_ts=received_ts,
+            topic=topic,
+            payload_json=payload_json,
+        )
+        sr.insert_switch_event(
+            conn=conn,
+            session_id=session_id,
+            device_id=device_id,
+            switch_name=switch_name,
+            value=value,
+            event_ts=event_ts,
+        )
+        sr.increment_session_interaction_count(conn=conn, session_id=session_id)
+
+    cloud_publisher.enqueue(_cloud_sync)
     logger.info(
         "switch_changed | device=%s | session=%s | switch=%s | value=%s | event_ts=%s",
         device_id,
@@ -195,6 +264,27 @@ def handle_session_ended(*, topic: str, data: dict[str, Any], received_ts: str, 
         )
         conn.commit()
 
+    def _cloud_sync(conn):
+        sr.upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_ONLINE)
+        sr.insert_event(
+            conn=conn,
+            device_id=device_id,
+            session_id=session_id,
+            event_type=EVENT_SESSION_ENDED,
+            event_ts=event_ts,
+            received_ts=received_ts,
+            topic=topic,
+            payload_json=payload_json,
+        )
+        sr.end_session(
+            conn=conn,
+            session_id=session_id,
+            ended_at=event_ts,
+            duration_ms=duration_ms,
+            interaction_count=interaction_count,
+        )
+
+    cloud_publisher.enqueue(_cloud_sync)
     logger.info(
         "session_ended | device=%s | session=%s | interaction_count=%s | duration_ms=%s | event_ts=%s",
         device_id,
@@ -210,6 +300,11 @@ def handle_device_offline(*, device_id: str, received_ts: str) -> None:
         upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_OFFLINE)
         active_sessions = get_active_sessions_for_device(conn=conn, device_id=device_id)
         conn.commit()
+
+    def _cloud_sync(conn):
+        sr.upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_OFFLINE)
+
+    cloud_publisher.enqueue(_cloud_sync)
 
     if active_sessions:
         active_session_ids = [str(row["session_id"]) for row in active_sessions]
@@ -228,4 +323,8 @@ def handle_device_online(*, device_id: str, received_ts: str) -> None:
         upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_ONLINE)
         conn.commit()
 
+    def _cloud_sync(conn):
+        sr.upsert_device(conn=conn, device_id=device_id, seen_ts=received_ts, status=DEVICE_STATUS_ONLINE)
+
+    cloud_publisher.enqueue(_cloud_sync)
     logger.info("device_online | device=%s | received_ts=%s", device_id, received_ts)

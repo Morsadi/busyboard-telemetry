@@ -2,6 +2,7 @@ import logging
 
 from db import init_db
 from mqtt_client import run_mqtt_client
+import cloud_publisher
 
 logging.basicConfig(
     level=logging.INFO,
@@ -11,6 +12,7 @@ logging.basicConfig(
 
 def main() -> None:
     init_db()
+    cloud_publisher.start()
     run_mqtt_client()
 
 
