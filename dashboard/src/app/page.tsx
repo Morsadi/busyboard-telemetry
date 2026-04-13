@@ -1,9 +1,16 @@
-import Image from 'next/image';
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { HardwareState } from '@/components/layout/HardwareState';
+import { Topbar } from '@/components/layout/Topbar';
+
+export default function DashboardPage() {
+	const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
 	return (
-		<div className='h-screen flex items-center justify-center bg-red'>
-			<h1 className='text-5xl text-400 font-bold'>Dashboard</h1>
+		<div className='flex flex-col h-screen bg-[#0b0f14] text-white overflow-hidden'>
+			<Topbar />
+			<HardwareState />
 		</div>
 	);
 }
