@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { HardwareState } from '@/components/layout/HardwareState';
 import { Topbar } from '@/components/layout/Topbar';
 import { SessionList } from '@/components/sessions/SessionList';
+import { EventPanel } from '@/components/events/EventPanel';
 
 export default function DashboardPage() {
 	const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -18,6 +19,7 @@ export default function DashboardPage() {
 					selectedId={selectedSessionId}
 					onSelect={setSelectedSessionId}
 				/>
+				<EventPanel sessionId={selectedSessionId} />
 			</div>
 		</div>
 	);

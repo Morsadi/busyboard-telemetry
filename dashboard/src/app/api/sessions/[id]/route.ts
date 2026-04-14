@@ -8,7 +8,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 	const [switchRes, eventRes] = await Promise.all([
 		supabase.from('switch_events').select('id, switch_name, value, event_ts').eq('session_id', id).order('event_ts', { ascending: false }),
-		supabase.from('events').select('id, event_type, event_ts, device_id, payload_json').eq('session_id', id).order('event_ts', { ascending: false }),
+		supabase
+			.from('events')
+			.select('id, event_type, event_ts, device_id, payload_json')
+			.eq('session_id', id)
+			.in('event_type', ['session_started', 'session_ended'])
+			.order('event_ts', { ascending: false }),
 	]);
 
 	if (switchRes.error) return NextResponse.json({ error: switchRes.error.message }, { status: 500 });
