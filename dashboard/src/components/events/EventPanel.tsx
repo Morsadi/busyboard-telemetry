@@ -47,12 +47,26 @@ export function EventPanel({ sessionId }: Props) {
 		setSession((prev) => (prev ? { ...prev, interaction_count: prev.interaction_count + 1 } : prev));
 	}, [latestSwitchEvent]);
 
-	// Mark session ended without full refetch
 	useEffect(() => {
 		if (!latestEvent || !session) return;
 		if (latestEvent.session_id !== session.session_id) return;
 		if (latestEvent.event_type === 'session_ended') {
 			setSession((prev) => (prev ? { ...prev, status: 'ended' } : prev));
+			setRows((prev) =>
+				prev.find((r) => r.id === latestEvent.id) !== undefined
+					? prev
+					: [
+							{
+								id: latestEvent.id,
+								event_ts: latestEvent.event_ts,
+								source: latestEvent.device_id,
+								source_type: 'device',
+								event_type: latestEvent.event_type,
+								value: latestEvent.event_type,
+							},
+							...prev,
+						],
+			);
 		}
 	}, [latestEvent]);
 

@@ -30,7 +30,7 @@ export function EventStats({ session }: { session: Session }) {
 			<div className={`grid grid-cols-4 border-b ${border.default}`}>
 				{[
 					{ n: session.interaction_count, label: 'Events' },
-					{ n: formatDuration(session.duration_ms, session.started_at, session.ended_at), label: 'Duration' },
+					{ n: formatDuration(session.started_at, session.ended_at), label: 'Duration' },
 					{ n: session.switch_count, label: 'Switches used' },
 					{ n: STATUS_LABELS[session.status] ?? '—', label: 'End reason' },
 				].map(({ n, label }) => (

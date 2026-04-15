@@ -30,10 +30,12 @@ export function SessionList({ selectedId, onSelect }: Props) {
 
 	// Handle session_start — prepend new session
 	useEffect(() => {
-		if (!latestEvent || latestEvent.event_type !== 'session_start') return;
-		fetch('/api/sessions')
-			.then((r) => r.json())
-			.then((data) => setSessions(data));
+		if (!latestEvent) return;
+		if (latestEvent.event_type === 'session_started' || latestEvent.event_type === 'session_ended') {
+			fetch('/api/sessions')
+				.then((r) => r.json())
+				.then((data) => setSessions(data));
+		}
 	}, [latestEvent]);
 
 	// Group sessions by date label

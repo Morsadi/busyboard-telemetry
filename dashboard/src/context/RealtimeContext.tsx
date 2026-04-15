@@ -5,14 +5,20 @@ import { createClient } from '@/lib/supabase';
 import { labelDevice } from '@/lib/utils';
 import type { Device, DbDevice, DbEvent, DbSwitchEvent } from '@/types';
 
+const SWITCH_NAMES = ['SW1', 'SW2', 'SW3', 'SW4', 'SW5', 'SW6', 'SW7', 'SW8', 'SW9', 'SW10', 'SW11'];
+
+type SwitchStates = Record<string, number>;
+
 type RealtimeContextValue = {
 	devices: Device[];
+	switchStates: SwitchStates;
 	latestSwitchEvent: DbSwitchEvent | null;
 	latestEvent: DbEvent | null;
 };
 
 const RealtimeContext = createContext<RealtimeContextValue>({
 	devices: [],
+	switchStates: Object.fromEntries(SWITCH_NAMES.map((n) => [n, 0])),
 	latestSwitchEvent: null,
 	latestEvent: null,
 });
@@ -20,43 +26,62 @@ const RealtimeContext = createContext<RealtimeContextValue>({
 export function RealtimeProvider({ children, initialDevices }: { children: React.ReactNode; initialDevices: Device[] }) {
 	const supabase = useRef(createClient());
 	const [devices, setDevices] = useState<Device[]>(initialDevices);
+	const [switchStates, setSwitchStates] = useState<SwitchStates>(Object.fromEntries(SWITCH_NAMES.map((n) => [n, 0])));
 	const [latestSwitchEvent, setLatestSwitchEvent] = useState<DbSwitchEvent | null>(null);
 	const [latestEvent, setLatestEvent] = useState<DbEvent | null>(null);
 
-	// Initial device fetch
+	// Fetch real switch state on mount — latest value per switch_name
 	useEffect(() => {
 		supabase.current
-			.from('devices')
-			.select('*')
+			.from('switch_events')
+			.select('switch_name, value, event_ts')
+			.order('event_ts', { ascending: false })
 			.then(({ data }) => {
-				if (data) setDevices(data.map(toDevice));
+				if (!data) return;
+				// Take the first (most recent) row per switch_name
+				const seen = new Set<string>();
+				const initial: SwitchStates = Object.fromEntries(SWITCH_NAMES.map((n) => [n, 0]));
+				for (const row of data) {
+					if (!seen.has(row.switch_name)) {
+						seen.add(row.switch_name);
+						initial[row.switch_name] = Number(row.value);
+					}
+				}
+				setSwitchStates(initial);
 			});
 	}, []);
 
-	// Single channel — all realtime subscriptions
+	// Realtime channel
 	useEffect(() => {
 		const channel = supabase.current
 			.channel('busyboard-realtime')
 			.on<DbDevice>('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'devices' }, ({ new: row }) =>
 				setDevices((prev) => prev.map((d) => (d.device_id === row.device_id ? toDevice(row) : d))),
 			)
-			.on<DbSwitchEvent>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'switch_events' }, ({ new: row }) => setLatestSwitchEvent(row))
+			.on<DbDevice>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'devices' }, ({ new: row }) => setDevices((prev) => [...prev, toDevice(row)]))
+			.on<DbSwitchEvent>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'switch_events' }, ({ new: row }) => {
+				setSwitchStates((prev) => ({
+					...prev,
+					[row.switch_name]: Number(row.value),
+				}));
+				setLatestSwitchEvent(row);
+			})
 			.on<DbEvent>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, ({ new: row }) => setLatestEvent(row))
-			.subscribe();
+			.subscribe((status) => {
+				console.log('[realtime] status:', status);
+			});
 
 		return () => {
 			supabase.current.removeChannel(channel);
 		};
 	}, []);
-	console.log('RealtimeContext render', { devices, latestSwitchEvent, latestEvent });
-	return <RealtimeContext.Provider value={{ devices, latestSwitchEvent, latestEvent }}>{children}</RealtimeContext.Provider>;
+
+	return <RealtimeContext.Provider value={{ devices, switchStates, latestSwitchEvent, latestEvent }}>{children}</RealtimeContext.Provider>;
 }
 
 export function useRealtime() {
 	return useContext(RealtimeContext);
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toDevice(row: DbDevice): Device {
 	const { label, type } = labelDevice(row.device_id);
