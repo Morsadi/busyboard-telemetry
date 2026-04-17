@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 
-export async function GET() {
-	const supabase = await createClient();
+const PAGE_SIZE = 50;
 
-	// Fetch sessions with switch_count and switch_events for the most recent 50 sessions
-	const { data, error } = await supabase
+export async function GET(req: Request) {
+	const supabase = await createClient();
+	const { searchParams } = new URL(req.url);
+
+	const page = Math.max(0, parseInt(searchParams.get('page') ?? '0'));
+	const search = searchParams.get('search')?.trim() ?? '';
+	const from = page * PAGE_SIZE;
+	const to = from + PAGE_SIZE - 1;
+
+	let query = supabase
 		.from('sessions')
 		.select(
 			`
@@ -20,16 +27,26 @@ export async function GET() {
     `,
 		)
 		.order('started_at', { ascending: false })
-		.limit(50);
+		.range(from, to);
 
+	if (search) {
+		query = query.ilike('session_id', `%${search}%`);
+	}
+
+	const { data, error } = await query;
 	if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-	const sessions = (data ?? []).map((row) => ({
-		...row,
-		// count distinct switch names
-		switch_count: new Set(row.switch_events.map((e: { switch_name: string }) => e.switch_name)).size,
-		switch_events: undefined, // strip from response
-	}));
+	const sessions = (data ?? []).map((row) => {
+		const { switch_events, ...session } = row;
+		return {
+			...session,
+			switch_count: new Set((switch_events ?? []).map((e: { switch_name: string }) => e.switch_name)).size,
+		};
+	});
 
-	return NextResponse.json(sessions);
+	return NextResponse.json({
+		sessions,
+		page,
+		hasMore: sessions.length === PAGE_SIZE,
+	});
 }

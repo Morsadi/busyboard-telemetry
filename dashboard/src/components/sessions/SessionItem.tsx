@@ -10,28 +10,35 @@ type Props = {
 
 export function SessionItem({ session, isSelected, onSelect }: Props) {
 	const isLive = session.status === 'active';
+	const hasInteractions = session.interaction_count > 0;
 
 	return (
 		<button
 			onClick={() => onSelect(session.session_id)}
-			className={`w-full text-left px-3 py-2.5 border-b ${border.subtle} border-l-2 transition-colors
-        ${isSelected ? `${bg.activeSession} ${border.active}` : `border-l-transparent hover:${bg.surface}`}`}>
+			className={`relative w-full text-left px-3 py-2.5 border-b transition-colors
+        ${border.subtle}
+        ${isSelected ? bg.activeSession : `hover:${bg.surface}`}`}>
+			<div className={`absolute left-0 top-0 h-full w-[3px] ${hasInteractions ? bg.sw : bg.mutedBar}`} />
+
 			<div className='flex items-center justify-between mb-1'>
-				<span className={`text-[12px] font-medium ${text.primary}`}>{formatTimestamp(session.started_at, 'session')}</span>
+				<time className={`text-[0.8rem] md:text-[1rem] font-medium ${text.primary}`}>{formatTimestamp(session.started_at, 'session')}</time>
+
 				{isLive && <span className={`text-[9px] ${text.live}`}>● live</span>}
 			</div>
 
 			<div className='flex items-center justify-between mb-2'>
-				<span className={`${t.monoXs} ${text.dim}`}>{session.session_id}</span>
-				<span className={`${t.monoXs} ${text.dim}`}>{formatDuration(session.duration_ms, session.started_at, session.ended_at)}</span>
+				<code className={`${t.monoXs} ${text.dim}`}>{session.session_id}</code>
+
+				<time className={`${t.monoSm} ${text.dim}`}>{formatDuration(session.started_at, session.ended_at)}</time>
 			</div>
 
 			<div className='flex gap-3'>
 				<span className={`text-[9px] ${text.dim}`}>
-					<span className={text.muted}>{session.interaction_count}</span> events
+					<span className={`${t.monoXs} ${text.muted}`}>{session.interaction_count}</span> events
 				</span>
+
 				<span className={`text-[9px] ${text.dim}`}>
-					<span className={text.muted}>{session.switch_count}</span> switches
+					<span className={`${t.monoXs} ${text.muted}`}>{session.switch_count}</span> switches
 				</span>
 			</div>
 		</button>
