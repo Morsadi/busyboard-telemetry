@@ -10,11 +10,11 @@ export default function DashboardPage() {
 	const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
 	return (
-		<div className='flex flex-col h-screen bg-[#0b0f14] text-white overflow-hidden'>
+		<div className='flex flex-col h-screen bg-[#0b0f14] overflow-hidden'>
 			<Topbar />
 			<HardwareState />
 
-			<div className='flex flex-1 overflow-hidden'>
+			<div className='flex flex-1 overflow-x-auto'>
 				<SessionList
 					selectedId={selectedSessionId}
 					onSelect={setSelectedSessionId}

@@ -19,15 +19,17 @@ export function EventStats({ session }: { session: Session }) {
 
 	return (
 		<>
-			<div className={`flex items-center gap-2.5 border-b ${border.default} px-3.5 py-2.5`}>
-				<span className={`${t.monoSm} font-medium ${text.primary}`}>{formatTimestamp(session.started_at, 'session')}</span>
-				<span className={`rounded-full border px-2 py-0.5 text-[10px] ${STATUS_BADGE[session.status]}`}>{session.status === 'active' ? '● live' : STATUS_LABELS[session.status]}</span>
-				<span className={`ml-auto ${t.monoXs} ${text.muted}`}>
-					{formatTimestamp(session.started_at, 'table')} → {endDisplay}
-				</span>
+			<div className={`grid grid-cols-1 md:grid-cols-3 gap-3 border-b ${border.default} px-3.5 py-2.5 md:grid-cols-[auto_auto_1fr]`}>
+				<time className={`${t.monoSm} font-medium ${text.primary}`}>{formatTimestamp(session.started_at, 'session')}</time>
+
+				<span className={`w-max rounded-full border px-2 py-0.5 ${t.monoSm} ${STATUS_BADGE[session.status]}`}>{session.status === 'active' ? '● live' : STATUS_LABELS[session.status]}</span>
+
+				<p className={`${t.monoSm} ${text.muted} md:ml-auto`}>
+					<time>{formatTimestamp(session.started_at, 'table')}</time> → <time>{endDisplay}</time>
+				</p>
 			</div>
 
-			<div className={`grid grid-cols-4 border-b ${border.default}`}>
+			<div className={`grid grid-cols-1 md:grid-cols-4 border-b ${border.default}`}>
 				{[
 					{ n: session.interaction_count, label: 'Events' },
 					{ n: formatDuration(session.started_at, session.ended_at), label: 'Duration' },
@@ -37,8 +39,8 @@ export function EventStats({ session }: { session: Session }) {
 					<div
 						key={label}
 						className={`border-r ${border.default} px-3.5 py-2 last:border-r-0`}>
-						<div className={`${t.monoSm} font-medium ${text.primary}`}>{n}</div>
-						<div className={`${t.tableCol} ${text.muted} mt-0.5`}>{label}</div>
+						<p className={`${t.monoSm} font-medium ${text.primary}`}>{n}</p>
+						<p className={`${t.tableCol} ${text.muted} mt-0.5`}>{label}</p>
 					</div>
 				))}
 			</div>

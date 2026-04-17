@@ -24,7 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
 	return (
 		<html lang='en'>
-			<body className='bg-[#0b0f14] text-[#e4eaf0] antialiased'>
+			<body className='bg-[#0b0f14] text-[#fff] antialiased'>
 				<RealtimeProvider initialDevices={initialDevices}>{children}</RealtimeProvider>
 			</body>
 		</html>

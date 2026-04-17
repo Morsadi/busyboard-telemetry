@@ -6,6 +6,9 @@ export const bg = {
 	surfaceDeep: 'bg-[#111820]',
 	activeSession: 'bg-[#0a1f3a]',
 	activeLive: 'bg-[#071a07]',
+	mutedBar: 'bg-[#1c2a3a]',
+	sw: 'bg-blue-400',
+	dev: 'bg-amber-700',
 } as const;
 
 export const border = {
@@ -34,11 +37,11 @@ export const text = {
 // ─── Typography ───────────────────────────────────────────────────────────────
 
 export const type = {
-	label: 'text-[10px] uppercase tracking-[1.5px]',
+	sectionLabel: `text-[0.75rem] md:text-[1rem] tracking-[1.5px] ${text.dim}`,
 	mono: 'font-mono',
-	monoSm: 'font-mono text-[11px]',
-	monoXs: 'font-mono text-[10px]',
-	tableCol: 'text-[9px] uppercase tracking-[1.5px] font-normal',
+	monoSm: 'font-mono text-[0.7rem] md:text-[0.9rem]',
+	monoXs: 'font-mono text-[0.6rem] md:text-[0.75rem]',
+	tableCol: 'text-[0.5rem] md:text-[0.6rem] uppercase tracking-[1.5px] font-normal',
 } as const;
 
 // ─── Layout ───────────────────────────────────────────────────────────────────

@@ -6,7 +6,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 	const supabase = await createClient();
 	const { id } = await params;
 
-	const [switchRes, eventRes] = await Promise.all([
+	const [sessionRes, switchRes, eventRes] = await Promise.all([
+		supabase
+			.from('sessions')
+			.select(
+				`
+        session_id,
+        device_id,
+        started_at,
+        ended_at,
+        duration_ms,
+        interaction_count,
+        status,
+        switch_events ( switch_name )
+      `,
+			)
+			.eq('session_id', id)
+			.single(),
 		supabase.from('switch_events').select('id, switch_name, value, event_ts').eq('session_id', id).order('event_ts', { ascending: false }),
 		supabase
 			.from('events')
@@ -16,19 +32,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 			.order('event_ts', { ascending: false }),
 	]);
 
+	if (sessionRes.error) return NextResponse.json({ error: sessionRes.error.message }, { status: 500 });
 	if (switchRes.error) return NextResponse.json({ error: switchRes.error.message }, { status: 500 });
 	if (eventRes.error) return NextResponse.json({ error: eventRes.error.message }, { status: 500 });
 
-	const switchRows: AuditRow[] = (switchRes.data ?? []).map((r) => ({
+	const { switch_events, ...sessionData } = sessionRes.data;
+	const session = {
+		...sessionData,
+		switch_count: new Set((switch_events ?? []).map((e: { switch_name: string }) => e.switch_name)).size,
+	};
+
+	const switchRows = (switchRes.data ?? []).map((r) => ({
 		id: r.id,
 		event_ts: r.event_ts,
 		source: r.switch_name,
 		source_type: 'switch' as const,
 		event_type: 'toggle',
 		value: r.value === 1 ? 'ON' : 'OFF',
+		_ts: Date.parse(r.event_ts),
 	}));
 
-	const deviceRows: AuditRow[] = (eventRes.data ?? []).map((r) => ({
+	const deviceRows = (eventRes.data ?? []).map((r) => ({
 		id: r.id,
 		event_ts: r.event_ts,
 		source: r.device_id,
@@ -36,9 +60,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 		event_type: r.event_type,
 		value: r.event_type,
 		payload_json: r.payload_json,
+		_ts: Date.parse(r.event_ts),
 	}));
 
-	const merged = [...switchRows, ...deviceRows].sort((a, b) => new Date(b.event_ts).getTime() - new Date(a.event_ts).getTime());
+	const rows = [...switchRows, ...deviceRows].sort((a, b) => b._ts - a._ts).map(({ _ts, ...row }) => row);
 
-	return NextResponse.json(merged);
+	return NextResponse.json({ session, rows });
 }

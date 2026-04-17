@@ -26,7 +26,7 @@ export function EventTable({ rows, session }: Props) {
 	}
 
 	return (
-		<div className='min-h-0 flex-1 overflow-y-auto'>
+		<div className='min-h-full max-h-full flex-1 pb-4'>
 			<table className='w-full border-collapse text-left'>
 				<thead>
 					<tr className={`${layout.stickyHead} ${bg.base}`}>

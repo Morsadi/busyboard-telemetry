@@ -15,6 +15,7 @@ export function EventPanel({ sessionId }: Props) {
 	const [loading, setLoading] = useState(false);
 	const { latestSwitchEvent, latestEvent } = useRealtime();
 
+	// Fetch session + rows together from a single route
 	useEffect(() => {
 		if (!sessionId) {
 			setSession(null);
@@ -22,10 +23,11 @@ export function EventPanel({ sessionId }: Props) {
 			return;
 		}
 		setLoading(true);
-		Promise.all([fetch('/api/sessions').then((r) => r.json()), fetch(`/api/sessions/${sessionId}`).then((r) => r.json())])
-			.then(([sessions, auditRows]) => {
-				setSession(sessions.find((s: Session) => s.session_id === sessionId) ?? null);
-				setRows(auditRows);
+		fetch(`/api/sessions/${sessionId}`)
+			.then((r) => r.json())
+			.then(({ session: s, rows: r }) => {
+				setSession(s);
+				setRows(r);
 			})
 			.finally(() => setLoading(false));
 	}, [sessionId]);
@@ -35,6 +37,7 @@ export function EventPanel({ sessionId }: Props) {
 		if (!latestSwitchEvent || !session) return;
 		if (latestSwitchEvent.session_id !== session.session_id) return;
 		if (session.status !== 'active') return;
+
 		const newRow: AuditRow = {
 			id: latestSwitchEvent.id,
 			event_ts: latestSwitchEvent.event_ts,
@@ -47,27 +50,27 @@ export function EventPanel({ sessionId }: Props) {
 		setSession((prev) => (prev ? { ...prev, interaction_count: prev.interaction_count + 1 } : prev));
 	}, [latestSwitchEvent]);
 
+	// Handle session_ended
 	useEffect(() => {
 		if (!latestEvent || !session) return;
 		if (latestEvent.session_id !== session.session_id) return;
-		if (latestEvent.event_type === 'session_ended') {
-			setSession((prev) => (prev ? { ...prev, status: 'ended' } : prev));
-			setRows((prev) =>
-				prev.find((r) => r.id === latestEvent.id) !== undefined
-					? prev
-					: [
-							{
-								id: latestEvent.id,
-								event_ts: latestEvent.event_ts,
-								source: latestEvent.device_id,
-								source_type: 'device',
-								event_type: latestEvent.event_type,
-								value: latestEvent.event_type,
-							},
-							...prev,
-						],
-			);
-		}
+		if (latestEvent.event_type !== 'session_ended') return;
+
+		setSession((prev) => (prev ? { ...prev, status: 'ended' } : prev));
+		setRows((prev) => {
+			if (prev.some((r) => r.id === latestEvent.id)) return prev;
+			return [
+				{
+					id: latestEvent.id,
+					event_ts: latestEvent.event_ts,
+					source: latestEvent.device_id,
+					source_type: 'device',
+					event_type: latestEvent.event_type,
+					value: latestEvent.event_type,
+				},
+				...prev,
+			];
+		});
 	}, [latestEvent]);
 
 	const centered = `flex flex-1 items-center justify-center text-[12px] ${text.dim}`;
@@ -77,7 +80,7 @@ export function EventPanel({ sessionId }: Props) {
 	if (!session) return null;
 
 	return (
-		<main className='flex min-h-0 flex-1 flex-col'>
+		<main className='flex min-h-0 flex-1 flex-col overflow-y-auto'>
 			<EventStats session={session} />
 			<EventTable
 				rows={rows}
