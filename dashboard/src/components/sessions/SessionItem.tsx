@@ -15,9 +15,9 @@ export function SessionItem({ session, isSelected, onSelect }: Props) {
 	return (
 		<button
 			onClick={() => onSelect(session.session_id)}
-			className={`relative w-full text-left px-3 py-2.5 border-b transition-colors
+			className={`relative w-full text-left px-3 py-2.5 border-b transition-colors cursor-pointer
         ${border.subtle}
-        ${isSelected ? bg.activeSession : `hover:${bg.surface}`}`}>
+        ${isSelected ? bg.activeSession : `hover:bg-[#0e1520]`}`}>
 			<div className={`absolute left-0 top-0 h-full w-[3px] ${hasInteractions ? bg.sw : bg.mutedBar}`} />
 
 			<div className='flex items-center justify-between mb-1'>
