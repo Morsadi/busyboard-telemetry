@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
-import type { AuditRow } from '@/types';
+
+const SESSION_ID_RE = /^\d{14}$/;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
 	const supabase = await createClient();
 	const { id } = await params;
+
+	if (!SESSION_ID_RE.test(id)) {
+		return NextResponse.json({ error: 'Invalid session ID' }, { status: 400 });
+	}
 
 	const [sessionRes, switchRes, eventRes] = await Promise.all([
 		supabase
