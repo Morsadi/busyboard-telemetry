@@ -25,6 +25,7 @@ export function SessionList({ selectedId, onSelect }: Props) {
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [page, setPage] = useState(0);
 	const [hasMore, setHasMore] = useState(false);
+	const [input, setInput] = useState('');
 	const [query, setQuery] = useState('');
 	const [hideEmpty, setHideEmpty] = useState(false);
 	const { latestSwitchEvent, latestEvent } = useRealtime();
@@ -35,9 +36,15 @@ export function SessionList({ selectedId, onSelect }: Props) {
 			.then(({ sessions: data, hasMore: more }) => {
 				setSessions(data);
 				setHasMore(more);
+				setPage(0);
 			})
 			.finally(() => setLoading(false));
 	}, []);
+
+	useEffect(() => {
+		const timer = setTimeout(() => setQuery(input), 400);
+		return () => clearTimeout(timer);
+	}, [input]);
 
 	function loadMore() {
 		const nextPage = page + 1;
@@ -88,16 +95,17 @@ export function SessionList({ selectedId, onSelect }: Props) {
 		return matchesHide && matchesSearch;
 	});
 
-	const grouped = visible.reduce<{ label: string; items: Session[] }[]>((acc, s) => {
-		const label = new Date(s.started_at).toLocaleDateString('en-US', {
+	const groups = Object.groupBy(visible, (s) =>
+		new Date(s.started_at).toLocaleDateString('en-US', {
 			month: 'short',
 			day: 'numeric',
-		});
-		const existing = acc.find((g) => g.label === label);
-		if (existing) existing.items.push(s);
-		else acc.push({ label, items: [s] });
-		return acc;
-	}, []);
+		}),
+	);
+
+	const grouped = Object.entries(groups).map(([label, items]) => ({
+		label,
+		items: items ?? [],
+	}));
 
 	return (
 		<aside className={`w-[160px] md:w-[220px] lg:w-[300px] flex flex-col border-r ${border.default}`}>
@@ -107,8 +115,8 @@ export function SessionList({ selectedId, onSelect }: Props) {
 				<input
 					type='text'
 					placeholder='ID, Apr 14, 4:53 PM...'
-					value={query}
-					onChange={(e) => setQuery(e.target.value)}
+					value={input}
+					onChange={(e) => setInput(e.target.value)}
 					className={`
             w-full px-2.5 py-1.5 rounded text-[11px] ${t.mono}
             ${bg.surfaceDeep} border ${border.default}

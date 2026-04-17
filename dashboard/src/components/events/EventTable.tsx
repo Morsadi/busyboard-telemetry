@@ -61,7 +61,7 @@ export function EventTable({ rows, session }: Props) {
 								</td>
 								<td className={`px-2.5 py-1.5 text-[11px] ${text.primary}`}>{row.event_type.replace(/_/g, ' ')}</td>
 								<td className={`px-2.5 py-1.5 ${t.monoSm} ${VALUE_CLASS[row.value] ?? text.off}`}>{row.value}</td>
-								<td className={`px-2.5 py-1.5 text-right ${t.monoSm} ${gap?.notable ? text.gap : text.dim}`}>{gap?.display ?? '—'}</td>
+								<td className={`px-2.5 py-1.5 ${t.monoSm} ${gap?.notable ? text.gap : text.dim}`}>{gap?.display ?? '—'}</td>
 							</tr>
 						);
 					})}
