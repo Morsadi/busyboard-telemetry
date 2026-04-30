@@ -2,7 +2,7 @@ import logging
 
 import paho.mqtt.client as mqtt
 
-from config import MQTT_HOST, MQTT_KEEPALIVE, MQTT_PORT
+from config import MQTT_HOST, MQTT_KEEPALIVE, MQTT_PASSWORD, MQTT_PORT, MQTT_USER
 from constants import TOPIC_EVENTS, TOPIC_STATUS, TOPIC_SWITCHES
 from router import handle_message
 
@@ -38,6 +38,7 @@ def run_mqtt_client() -> None:
     client.on_message = on_message
 
     try:
+        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         client.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE)
         logger.info("Ingestion server started")
         client.loop_forever()
