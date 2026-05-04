@@ -61,8 +61,8 @@ The broker publishes this automatically on ungraceful disconnects (USB unplug, p
 
 Other components in the BusyBoard system that consume these MQTT messages:
 
-| Component | Role | Repo |
+| Component | Role | Dir |
 |-----------|------|------|
-| Ingestion Server | Subscribes to events + status, writes to database, closes sessions on LWT | - |
-| Dashboard | Real-time web UI for telemetry visualization | - |
-| Buzzer | ESP32 subscriber with its own connection LED. Reacts to BusyBoard status and specific switch events. | - |
+| Ingestion Server | Subscribes to events + status, writes to database, closes sessions on LWT | [`Link`](../../ingestion/README.md) |
+| Dashboard | Real-time web UI for telemetry visualization | [`Link`](../../dashboard/README.md) |
+| Buzzer | ESP32 subscriber with its own connection LED. Reacts to BusyBoard status and specific switch events. | [`Link`](../Buzzer/README.md) |

@@ -96,7 +96,7 @@ Both routes pass through `middleware.ts`, which applies a 60 req/min per-IP limi
 
 ## Related Components
 
-| Component | Role | Repo |
+| Component | Role | Dir |
 |-----------|------|------|
-| BusyBoard Firmware | Publishes events that populate the dashboard | - |
-| Ingestion Server | Writes the data this dashboard reads | - |
+| BusyBoard Firmware | Publishes events that populate the dashboard | [`Link`](../firmware/Busyboard/README.md) |
+| Ingestion Server | Writes the data this dashboard reads | [`Link`](../ingestion/README.md) |

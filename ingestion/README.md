@@ -107,7 +107,7 @@ Full pytest coverage across every layer. Repository tests run against a real SQL
 
 ## Related Components
 
-| Component | Role | Repo |
+| Component | Role | Dir |
 |-----------|------|------|
-| BusyBoard Firmware | Publishes the events this server consumes | - |
-| Dashboard | Reads from the Supabase tables this server writes | - |
+| BusyBoard Firmware | Publishes the events this server consumes | [`Link`](../firmware/Busyboard/README.md) |
+| Dashboard | Reads from the Supabase tables this server writes | [`Link`](../dashboard/README.md) |
