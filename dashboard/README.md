@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BusyBoard Dashboard
 
-## Getting Started
+Next.js read-only dashboard for the BusyBoard system. Renders live hardware state, device status, session history, and per-session audit logs sourced from Supabase.
 
-First, run the development server:
+**Live:** [busyboard-telemetry.vercel.app](https://busyboard-telemetry.vercel.app/)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## File Structure
+
+```
+dashboard/
+└── src/
+    ├── app/
+    │   ├── api/sessions/
+    │   │   ├── route.ts             # GET /api/sessions: paginated list
+    │   │   └── [id]/route.ts        # GET /api/sessions/:id: session + audit rows
+    │   ├── layout.tsx               # Root layout, bootstraps RealtimeProvider
+    │   ├── page.tsx                 # Shell, selected-session state, URL sync
+    │   └── globals.css
+    ├── components/
+    │   ├── layout/
+    │   │   ├── Topbar.tsx           # Logo and connection status
+    │   │   └── HardwareState.tsx    # Switch grid + device list banner
+    │   ├── switches/SwitchGrid.tsx  # Live read-only switch state
+    │   ├── devices/DeviceList.tsx   # Online/offline device status
+    │   ├── sessions/
+    │   │   ├── SessionList.tsx      # Searchable, paginated index
+    │   │   └── SessionItem.tsx      # Individual session row
+    │   └── events/
+    │       ├── EventPanel.tsx       # Fetches + renders selected session
+    │       ├── EventStats.tsx       # Header and stat strip
+    │       └── EventTable.tsx       # Chronological audit table
+    ├── context/
+    │   └── RealtimeContext.tsx      # Shared Supabase Realtime channel
+    ├── lib/
+    │   ├── supabase.ts              # Browser client
+    │   ├── supabase-server.ts       # Server client for API routes
+    │   ├── utils.ts                 # Timestamp formatting, gap calculation
+    │   └── styles.ts                # Shared Tailwind design tokens
+    ├── types/index.ts               # Shared TypeScript types
+    └── middleware.ts                # Upstash rate limiting on /api
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Layer | Detail |
+|-------|--------|
+| Framework | Next.js 14 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| Data | Supabase (Postgres) |
+| Realtime | Supabase Realtime via `postgres_changes` |
+| Rate limiting | Upstash Redis sliding window |
+| Hosting | Vercel |
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Views
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Component | Source | Behavior |
+|-----------|--------|----------|
+| Switch grid | Latest `switch_events` per switch | Seeded on load, live-updated via Realtime |
+| Device list | `devices` table | Online/offline reflects ingestion server status updates |
+| Session list | `/api/sessions` | Paginated, searchable by ID/date/time, filters empty sessions, new sessions prepend live |
+| Event table | `/api/sessions/:id` | Chronological per-session audit; live rows prepend without refresh |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The event table shows absolute timestamp, relative offset from session start, device, event type, value, and gap since the previous event. Gaps over 60 seconds are highlighted.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Realtime
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A single Supabase Realtime channel is created in `RealtimeContext` and shared across the app. Components subscribe to specific tables (`switch_events`, `devices`, `sessions`) without opening their own connections.
+
+---
+
+## Read-Only by Design
+
+The dashboard never writes to the database. The browser uses the Supabase **anon key** with Row Level Security enforcing read-only access at the database level. The service role key stays on the ingestion server.
+
+---
+
+## API Routes
+
+| Route | Returns |
+|-------|---------|
+| `GET /api/sessions` | Paginated session index with search params |
+| `GET /api/sessions/:id` | Session metadata + full audit rows |
+
+Both routes pass through `middleware.ts`, which applies a 60 req/min per-IP limit via Upstash Redis.
+
+---
+
+## Related Components
+
+| Component | Role | Repo |
+|-----------|------|------|
+| BusyBoard Firmware | Publishes events that populate the dashboard | - |
+| Ingestion Server | Writes the data this dashboard reads | - |
