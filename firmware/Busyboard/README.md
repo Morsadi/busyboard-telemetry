@@ -63,14 +63,6 @@ Other components in the BusyBoard system that consume these MQTT messages:
 
 | Component | Role | Repo |
 |-----------|------|------|
-| Ingestion Server | Subscribes to events + status, writes to database, closes sessions on LWT | _link_ |
-| Dashboard | Real-time web UI for telemetry visualization | _link_ |
-| Buzzer | ESP32 subscriber with its own connection LED. Reacts to BusyBoard status and specific switch events. | _link_ |
-
-### Buzzer Behavior
-
-| Trigger | Sound |
-|---------|-------|
-| BusyBoard first connects (`status` → `online`) | One beep |
-| BusyBoard disconnects (`status` → `offline` via LWT) | Three beeps |
-| SW8 and SW9 flipped | Two beeps |
+| Ingestion Server | Subscribes to events + status, writes to database, closes sessions on LWT | - |
+| Dashboard | Real-time web UI for telemetry visualization | - |
+| Buzzer | ESP32 subscriber with its own connection LED. Reacts to BusyBoard status and specific switch events. | - |
