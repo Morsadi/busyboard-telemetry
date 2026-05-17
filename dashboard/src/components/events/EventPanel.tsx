@@ -80,7 +80,7 @@ export function EventPanel({ sessionId }: Props) {
 	if (!session) return null;
 
 	return (
-		<main className='flex min-h-0 flex-1 flex-col overflow-y-auto'>
+		<main className='flex min-h-0 flex-1 flex-col overflow-y-scroll height-full'>
 			<EventStats session={session} />
 			<EventTable
 				rows={rows}

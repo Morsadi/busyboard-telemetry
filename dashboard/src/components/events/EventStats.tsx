@@ -19,8 +19,10 @@ export function EventStats({ session }: { session: Session }) {
 
 	return (
 		<>
-			<div className={`grid grid-cols-1 md:grid-cols-3 gap-3 border-b ${border.default} px-3.5 py-2.5 md:grid-cols-[auto_auto_1fr]`}>
-				<time className={`${t.monoSm} font-medium ${text.primary}`}>{formatTimestamp(session.started_at, 'session')}</time>
+			<div className={`grid grid-cols-1 md:grid-cols-3 gap-3 border-b ${border.default} px-3.5 py-2.5 md:grid-cols-[auto_auto_1fr] md:items-center`}>
+				<p className={`${t.monoSm} font-medium ${text.primary}`}>
+					<strong>Session ID:</strong> {session.session_id}
+				</p>
 
 				<span className={`w-max rounded-full border px-2 py-0.5 ${t.monoSm} ${STATUS_BADGE[session.status]}`}>{session.status === 'active' ? '● live' : STATUS_LABELS[session.status]}</span>
 
@@ -38,7 +40,7 @@ export function EventStats({ session }: { session: Session }) {
 				].map(({ n, label }) => (
 					<div
 						key={label}
-						className={`border-r ${border.default} px-3.5 py-2 last:border-r-0`}>
+						className={`border-r ${border.default} px-3.5 py-2 last:border-b-0`}>
 						<p className={`${t.monoSm} font-medium ${text.primary}`}>{n}</p>
 						<p className={`${t.tableCol} ${text.muted} mt-0.5`}>{label}</p>
 					</div>
