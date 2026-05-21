@@ -12,13 +12,13 @@ export function DeviceList() {
 	}
 
 	return (
-		<div className='flex flex-col gap-1.5'>
+		<div className='flex flex-row gap-1.5'>
 			{devices.map((device) => {
 				const online = device.status === 'online';
 				return (
 					<div
 						key={device.device_id}
-						className={`flex items-center gap-2.5 px-2.5 py-2 rounded ${bg.surfaceDeep} border ${border.default}`}>
+						className={`flex flex-col items-baseline gap-2.5 px-2.5 py-2 rounded ${bg.surfaceDeep} border ${border.default}`}>
 						<div className={`w-1.5 h-1.5 rounded-full shrink-0 ${online ? 'bg-green-600' : 'bg-slate-600'}`} />
 						<div className='flex-1 min-w-0'>
 							<p className={`text-[11px] md:text-[13px] ${text.primary} truncate`}>{device.label}</p>

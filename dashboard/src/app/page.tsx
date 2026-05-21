@@ -26,7 +26,7 @@ function DashboardPage() {
 	}
 
 	return (
-		<div className='flex flex-col h-screen bg-[#0b0f14] overflow-hidden'>
+		<div className='flex flex-col h-screen min-h-100vh min-h-100dvh bg-[#0b0f14] overflow-hidden'>
 			<Topbar />
 			<HardwareState />
 
