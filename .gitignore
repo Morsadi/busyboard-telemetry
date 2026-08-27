@@ -47,3 +47,6 @@ build/
 
 # Firmware
 secrets.h
+
+# Local engineering audits
+.local-audit/
