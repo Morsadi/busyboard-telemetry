@@ -1,68 +1,66 @@
-# BusyBoard Firmware
+# BusyBoard publisher firmware
 
-ESP32 firmware for the BusyBoard. Reads 11 toggle switches and an MPU-6050 accelerometer, publishes structured events over MQTT to a local Mosquitto broker.
+This ESP32 sketch reads 11 toggle switches and an MPU-6050, manages activity sessions, and publishes device/session/switch telemetry to MQTT.
 
----
+## Modules
 
-## File Structure
+| File | Responsibility |
+|---|---|
+| `main.ino` | Startup and primary loop |
+| `config.h` | Pins, thresholds, timing, firmware version, and MQTT limits |
+| `secrets.h` | Local Wi-Fi/MQTT credentials; gitignored |
+| `IMUManager.h` | MPU-6050 initialization and motion threshold detection |
+| `MQTTManager.h` | MQTT startup connection, publication, status, and LWT |
+| `SessionManager.h` | Session lifecycle and telemetry payload construction |
+| `StatusLed.h` | Connection-state LED behavior |
+| `SwitchManager.h` | Switch initialization, polling, and debounce |
+| `WifiManager.h` | Blocking startup Wi-Fi connection |
 
-```
-Busyboard/
-├── main.ino           # Entry point — setup() and loop()
-├── config.h           # Pin definitions, thresholds, topic strings
-├── secrets.h          # WiFi & MQTT credentials (gitignored)
-├── IMUManager.h       # MPU-6050 read + threshold detection
-├── MQTTManager.h      # MQTT connection, publish, LWT registration
-├── SessionManager.h   # Session lifecycle and event tracking
-├── StatusLed.h        # Connection and activity LED feedback
-├── SwitchManager.h    # Switch polling, debounce, state change
-└── WifiManager.h      # WiFi connection and reconnect
-```
+## Hardware and configuration
 
----
-
-## Hardware
-
-| Component | Detail |
-|-----------|--------|
+| Component | Current configuration |
+|---|---|
 | MCU | ESP32 DevKit |
-| Switches | 11 toggles (SW1–SW11), `INPUT_PULLDOWN`, active HIGH |
-| IMU | MPU-6050 over I2C (SDA = GPIO 21, SCL = GPIO 22, addr 0x68) |
+| Switches | 11 toggles, `INPUT_PULLDOWN`, active HIGH |
+| Switch names | `SW1` through `SW11` |
 | Switch GPIOs | 13, 2, 14, 27, 26, 25, 33, 18, 32, 4, 23 |
-| Status LED | GPIO 5 — on when connected to MQTT, off otherwise |
+| IMU | MPU-6050, I2C address `0x68` |
+| I2C pins | SDA 21, SCL 22 |
+| Status LED | GPIO 5 |
+| Switch debounce | 40 ms |
+| Session inactivity timeout | 5 seconds |
+| Main-loop delay | 20 ms |
 
----
+Motion starts or extends a session but is not emitted as a switch interaction. Switch changes are published separately from lifecycle events. See [the data-model documentation](../../docs/data-model.md) and [the current MQTT contract](../../docs/contracts/mqtt.md).
 
-## MQTT Topics
+## Local setup
 
-Topics follow `busyboard/{deviceId}/...`. Device ID is derived from the MAC address (`bb-{hex}`, e.g. `bb-87c92df4`).
+Create a local gitignored `secrets.h` that defines:
 
-| Topic | Payload | When |
-|-------|---------|------|
-| `busyboard/{id}/status` | `"online"` / `"offline"` (retained) | On connect / LWT |
-| `busyboard/{id}/events` | JSON event object | On switch or IMU state change |
+- `WIFI_SSID`
+- `WIFI_PASSWORD`
+- `MQTT_SERVER`
+- `MQTT_PORT`
+- `MQTT_USER`
+- `MQTT_PASSWORD`
 
-Timestamps use `YYYYMMDDHHmmss` and are normalized to ISO 8601 at ingest.
+The repository does not include safe declaration examples, values, a board FQBN, or pinned toolchain/library versions.
 
----
+## Build and physical verification
 
-## LWT (Last Will and Testament)
+Use an ESP32 Arduino-compatible toolchain configured outside this repository to compile and flash `main.ino`. Record the selected board target and dependency versions when reporting verification.
 
-The firmware registers an MQTT Last Will on connect:
+After flashing, verify as applicable:
 
-- **Topic:** `busyboard/{id}/status`
-- **Payload:** `"offline"` (retained)
+- Wi-Fi, NTP, and MQTT startup status in serial output;
+- retained online/offline status at the broker;
+- all 11 switch inputs and debounce behavior;
+- motion starting/extending a session without a switch row;
+- session end after inactivity;
+- status LED behavior.
 
-The broker publishes this automatically on ungraceful disconnects (USB unplug, power loss, network drop). On a clean connect, the firmware publishes a retained `"online"` to the same topic. The ingestion server uses these to track device state and close orphaned sessions.
+## Runtime notes
 
----
+Wi-Fi, time synchronization, and MQTT connection are established during startup. The current sketch does not reconnect MQTT after a later connection loss, so connectivity changes require device and broker verification.
 
-## Subscribers
-
-Other components in the BusyBoard system that consume these MQTT messages:
-
-| Component | Role | Dir |
-|-----------|------|------|
-| Ingestion Server | Subscribes to events + status, writes to database, closes sessions on LWT | [`Link`](../../ingestion/README.md) |
-| Dashboard | Real-time web UI for telemetry visualization | [`Link`](../../dashboard/README.md) |
-| Buzzer | ESP32 subscriber with its own connection LED. Reacts to BusyBoard status and specific switch events. | [`Link`](../Buzzer/README.md) |
+Session identity and MQTT compatibility requirements are maintained in [the shared data model](../../docs/data-model.md) and [MQTT contract](../../docs/contracts/mqtt.md).

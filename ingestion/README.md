@@ -1,113 +1,71 @@
-# BusyBoard Ingestion Server
+# BusyBoard ingestion service
 
-Python MQTT ingestion server. Subscribes to a local Mosquitto broker, validates payloads, applies session lifecycle logic, and dual-writes to SQLite (local) and Supabase (cloud).
+The ingestion service subscribes to BusyBoard MQTT telemetry, validates topics and payloads, applies session rules, commits accepted data to SQLite, and queues separate best-effort writes to Supabase/Postgres.
 
----
+See [the system architecture](../docs/architecture.md) for cloud failure semantics and [the MQTT contract](../docs/contracts/mqtt.md) for authoritative topic/payload definitions.
 
-## File Structure
+## Requirements
 
-```
-ingestion/
-├── app.py             # Entry point: MQTT client setup, dispatch loop
-├── router.py          # Topic parser and message dispatcher
-├── validators.py      # Payload integrity and shape checks
-├── handlers.py        # Session lifecycle and event business logic
-├── repositories.py    # SQLite + Supabase writes
-└── utils.py           # Timestamp normalization, helpers
+- Python with `venv` and `pip` support;
+- a Mosquitto-compatible broker available at `localhost:1883`;
+- optional Supabase/Postgres connectivity for cloud publication.
 
-tests/
-├── conftest.py
-├── test_utils.py         # Timestamp normalization, payload parsing
-├── test_validators.py    # Payload integrity, edge cases
-├── test_router.py        # Topic routing with mocked broker
-├── test_repositories.py  # DB operations against real SQLite
-└── test_handlers.py      # Full session lifecycle
-```
+Dependencies are currently listed without version pins in `requirements.txt`.
 
----
+## Environment
 
-## Pipeline
+The service loads `ingestion/.env` when present. The file is gitignored.
 
-```
-MQTT message
-  → Router         parses topic, picks message type
-  → Validator      enforces payload shape
-  → Handler        applies session/event logic
-  → Repository     writes to SQLite + Supabase
+| Variable | Required | Purpose |
+|---|---|---|
+| `MQTT_USER` | No | Broker username; defaults to an empty string |
+| `MQTT_PASSWORD` | No | Broker password; defaults to an empty string |
+| `SUPABASE_DB_URL` | No | Direct Postgres connection string; cloud publication is disabled when absent |
+
+MQTT host and port are currently fixed in code as `localhost` and `1883`.
+
+## Install and run
+
+From `ingestion/`, create or select a virtual environment, then run:
+
+```bash
+python -m pip install -r requirements.txt
+python app.py
 ```
 
-Each layer has one job. The router never touches the database. The repository never parses topics. Idempotent throughout. Duplicate messages produce the same result as a single message.
+`app.py` initializes `busyboard.db` from the tracked `schema.sql`, starts cloud publication when configured and reachable, then enters the MQTT loop.
 
----
+## Modules
 
-## Subscribed Topics
+| File | Responsibility |
+|---|---|
+| `app.py` | Process entry point |
+| `mqtt_client.py` | Broker connection, subscriptions, and callbacks |
+| `router.py` | Topic/JSON parsing and event dispatch |
+| `validators.py` | Payload validation |
+| `handlers.py` | Session/device business rules and transaction orchestration |
+| `repositories.py` | SQLite queries and writes |
+| `db.py` / `schema.sql` | SQLite connection and tracked schema |
+| `cloud_publisher.py` | In-memory asynchronous cloud queue and worker |
+| `supabase_db.py` | Direct Postgres connection |
+| `supabase_repositories.py` | Postgres queries and writes |
+| `utils.py` | Timestamp, JSON, and topic helpers |
+| `constants.py` | Topic, event, device, and session constants |
 
-```
-busyboard/{deviceId}/events
-busyboard/{deviceId}/switch/{switchName}
-busyboard/{deviceId}/status
-```
-
-Topic determines message type. Payload refines behavior.
-
----
-
-## Session Model
-
-Every interaction is scoped to a session: a continuous period of activity on the board.
-
-```
-device_connected → session_started → switch_changed (×N) → session_ended
-```
-
-Sessions capture `started_at`, `ended_at`, `duration_ms`, `interaction_count`, and which switches were used. Session IDs are `YYYYMMDDHHmmss` strings, which are human-readable and naturally sortable.
-
-**Ghost sessions** (caused by ungraceful disconnects) are auto-closed by a `pg_cron` job in Postgres running every minute. The MQTT broker's LWT publishes the offline status that triggers cleanup.
-
----
-
-## Storage
-
-| Store | Role |
-|-------|------|
-| SQLite | Local primary store. All writes go here first. |
-| Supabase (Postgres) | Cloud sync for the dashboard. Writes happen in a background daemon thread so MQTT processing is never blocked. |
-
-If Supabase is unreachable, ingestion continues uninterrupted. The local store is always source of truth.
-
----
-
-## Schema
-
-```
-devices        device_id, status, first_seen_at, last_seen_at
-sessions       session_id, device_id, started_at, ended_at, duration_ms,
-               interaction_count, status
-events         id, device_id, session_id, event_type, event_ts, topic,
-               payload_json
-switch_events  id, session_id, device_id, switch_name, value, event_ts
-```
-
----
-
-## Design Principles
-
-- **Validate before writing.** Malformed payloads are logged and discarded. They never reach the database.
-- **Idempotent handlers.** Replay-safe. Same input produces same outcome regardless of how many times it arrives.
-- **Edge-first.** SQLite is primary; Supabase is sync. The dashboard degrades if the cloud is down; ingestion does not.
-- **Strict separation of concerns.** Router routes, validators validate, handlers apply logic, repositories write. No layer reaches into another's responsibility.
-
----
+The detailed session lifecycle and local/cloud differences are documented in [the data model](../docs/data-model.md).
 
 ## Testing
 
-Full pytest coverage across every layer. Repository tests run against a real SQLite instance; router tests use a mocked broker.
+Run from `ingestion/`:
 
----
+```bash
+python -m pytest
+```
 
-## Related Components
+Tests cover helpers, validation, routing, SQLite repositories, and local handlers. They do not verify the cloud publisher, Postgres repositories, a real broker, or live Supabase behavior. See [testing and verification](../docs/testing.md).
 
-| Component | Role | Dir |
-|-----------|------|------|
-| BusyBoard Firmware | Publishes the events this server consumes | [`Link`](../firmware/Busyboard/README.md) |
-| Dashboard | Reads from the Supabase tables this server writes | [`Link`](../dashboard/README.md) |
+## Persistence workflow
+
+Accepted messages commit to SQLite before a background publisher performs the corresponding Postgres operations. If cloud publication is not configured or available during startup, ingestion continues with local persistence.
+
+Changes affecting persistence should verify both repository implementations and the dashboard fields they support. See [the architecture](../docs/architecture.md) and [data model](../docs/data-model.md).

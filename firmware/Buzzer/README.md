@@ -1,71 +1,64 @@
-# Buzzer Firmware
+# BusyBoard Buzzer firmware
 
-ESP32 firmware for the BusyBoard companion buzzer. Subscribes to a BusyBoard's MQTT events and beeps in response to status changes and specific switch triggers.
+This ESP32 companion sketch subscribes directly to one BusyBoard's MQTT status and two selected switch topics. It plays configured beep patterns and may publish an alarm event on its own events topic.
 
----
+## Modules
 
-## File Structure
+| File | Responsibility |
+|---|---|
+| `main.ino` | Startup and primary loop |
+| `config.h` | Pins, trigger switches, beep patterns, timing, and MQTT limits |
+| `secrets.h` | Local Wi-Fi/MQTT credentials and target BusyBoard ID; gitignored |
+| `WiFiManager.h` | Blocking startup Wi-Fi connection |
+| `MQTTManager.h` | MQTT startup connection, subscriptions, status, and dispatch |
+| `AlarmListener.h` | Peer-message routing, trigger state, and alarm publication |
+| `BuzzerController.h` | Blocking beep-pattern playback |
+| `StatusLed.h` | Connection-state LED behavior |
 
-```
-Buzzer/
-├── main.ino             # Entry point — setup() and loop()
-├── config.h             # Pins, beep patterns, target device ID, trigger switches
-├── secrets.h            # WiFi & MQTT credentials (gitignored)
-├── StatusLed.h          # Connection state LED (CONNECTING / ONLINE / OFFLINE)
-├── WiFiManager.h        # WiFi connection
-├── MQTTManager.h        # MQTT client wrapper, message dispatch
-├── BuzzerController.h   # Non-blocking beep sequencer
-└── AlarmListener.h      # Topic subscription + payload → beep mapping
-```
+## Hardware and configuration
 
----
-
-## Hardware
-
-| Component | Detail |
-|-----------|--------|
+| Component | Current configuration |
+|---|---|
 | MCU | ESP32 DevKit |
-| Buzzer | Active buzzer on `BUZZER_PIN` |
-| Status LED | On `STATUS_LED_PIN`: blinks while connecting, solid when online |
+| Active buzzer | GPIO 13 |
+| Status LED | GPIO 14 |
+| Trigger switches | `SW8` and `SW9` |
+| Main-loop delay | 20 ms |
 
----
+The beep count, duration, and gap for online, offline, and two-switch alarms are configured in `config.h`.
 
-## MQTT Subscriptions
+## Local setup
 
-The buzzer subscribes to a single target BusyBoard, identified by `BUSYBOARD_DEVICE_ID` in `config.h`.
+Create a local gitignored `secrets.h` that defines:
 
-| Topic | Listens For |
-|-------|-------------|
-| `busyboard/{target}/status` | `"online"` / `"offline"` (LWT) |
-| `busyboard/{target}/events` | Switch events for `TRIGGER_SWITCH_A` and `TRIGGER_SWITCH_B` |
+- `WIFI_SSID`
+- `WIFI_PASSWORD`
+- `MQTT_SERVER`
+- `MQTT_PORT`
+- `MQTT_USER`
+- `MQTT_PASSWORD`
+- `BUSYBOARD_DEVICE_ID`
 
----
+`BUSYBOARD_DEVICE_ID` selects the peer whose status and configured switch topics are subscribed.
 
-## Beep Patterns
+## Behavior
 
-Each pattern is configured in `config.h` as a `(count, duration, gap)` tuple.
+1. Initialize the buzzer and connection LED.
+2. Block until Wi-Fi connects.
+3. Block until NTP time is available.
+4. Attempt MQTT startup connection a configured number of times.
+5. On success, subscribe to the target BusyBoard's status topic and the two configured switch topics.
+6. Beep on BusyBoard online/offline transitions or when both trigger switches become ON.
+7. Publish `alarm_triggered` for offline and two-switch alarms.
 
-| Trigger | Pattern |
-|---------|---------|
-| BusyBoard comes online | `BEEP_BUSYBOARD_ONLINE_*` |
-| BusyBoard goes offline | `BEEP_BUSYBOARD_OFFLINE_*` |
-| Trigger switch pattern (A and B both flipped) | `BEEP_SWITCH_ALARM_*` |
+Ingestion currently logs `alarm_triggered` as unhandled and does not persist it. Topic and payload details live in [the MQTT contract](../../docs/contracts/mqtt.md).
 
----
+## Build and physical verification
 
-## Boot Sequence
+Use an ESP32 Arduino-compatible toolchain configured outside this repository to compile and flash `main.ino`. No reproducible board/toolchain configuration is tracked.
 
-1. Init buzzer and status LED (`CONNECTING` state).
-2. Connect to WiFi, blinking the LED during the wait.
-3. Sync time over NTP (`pool.ntp.org`).
-4. Connect to MQTT with retry — up to `MQTT_STARTUP_MAX_ATTEMPTS`.
-5. On success: LED turns solid (`ONLINE`), `AlarmListener` subscribes.
-6. On failure: LED stays off (`OFFLINE`), no subscription. The main loop will reflect any later disconnection but does not auto-reconnect on its own.
+After flashing, verify subscriptions, retained peer status, both trigger switches, all beep patterns, alarm publication, and LED behavior.
 
----
+## Runtime notes
 
-## Related Components
-
-| Component | Role | Repo |
-|-----------|------|------|
-| BusyBoard Firmware | Publishes the `status` and `events` topics this buzzer listens to | - |
+Wi-Fi, time synchronization, MQTT connection, and peer subscriptions are established during startup. Beep patterns run synchronously, so timing or reconnect changes should be verified with the broker and physical device.

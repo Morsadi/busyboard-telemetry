@@ -1,58 +1,48 @@
 # BusyBoard
 
-A full-stack IoT system that captures physical interactions from a custom hardware device and streams them as structured telemetry through an event-driven pipeline, ending in a real-time web dashboard.
+BusyBoard is a full-stack IoT telemetry project that records interactions with a custom ESP32-based control board and presents them in a live web dashboard.
+
+The physical board has 11 toggle switches and an MPU-6050 motion sensor. Firmware publishes telemetry over MQTT, a Python service validates and persists it, and a Next.js dashboard reads the cloud data through Supabase.
 
 **Live dashboard:** [busyboard-telemetry.vercel.app](https://busyboard-telemetry.vercel.app/)
 
----
+## System overview
 
-## What It Does
+```text
+BusyBoard ESP32 -> Mosquitto -> Python ingestion -> SQLite
+                                      |
+                                      -> Supabase/Postgres -> Next.js dashboard
 
-A physical board with 11 toggle switches and an accelerometer sits on a desk. Every interaction is captured by embedded firmware, published over MQTT, ingested by a Python server, persisted to a database, and streamed live to a web dashboard. The full chain from physical input to browser UI happens in under a second.
-
----
-
-## Architecture
-
-```
-ESP32 Firmware
-    │  MQTT over WiFi
-    ▼
-Mosquitto Broker
-    │
-    ▼
-Python Ingestion Server
-    │  SQLite (local) + Supabase (cloud sync)
-    ▼
-Next.js Dashboard
+Buzzer ESP32 <- selected BusyBoard MQTT messages
 ```
 
-Three independent components, each with its own repository.
-
----
+SQLite is committed first, and cloud publication runs asynchronously. Persistence changes should be verified in both paths. See [the architecture documentation](docs/architecture.md) for the complete runtime flow.
 
 ## Components
 
-| Folder | Description |
-|--------|-------------|
-| [`firmware/Busyboard`](./firmware/Busyboard) | ESP32 firmware. Reads 11 switches and an MPU-6050, publishes events over MQTT. |
-| [`firmware/Buzzer`](./firmware/Buzzer) | ESP32 companion device. Subscribes to BusyBoard MQTT events and plays beep patterns on status changes and switch triggers. |
-| [`ingestion/`](./ingestion) | Python MQTT subscriber. Validates, applies session logic, dual-writes to SQLite and Supabase. |
-| [`dashboard/`](./dashboard) | Next.js read-only dashboard. Live switch state, device status, session history, audit logs. |
+| Directory | Responsibility |
+|---|---|
+| [`firmware/`](firmware/README.md) | BusyBoard publisher and Buzzer subscriber firmware |
+| [`ingestion/`](ingestion/README.md) | MQTT validation, session logic, SQLite persistence, and asynchronous Postgres publication |
+| [`dashboard/`](dashboard/README.md) | Read-only-intended Next.js dashboard backed by Supabase |
 
----
+## Getting started
 
-## Stack
+There is not yet a one-command full-system development environment. Set up the component you need:
 
-| Layer | Technology |
-|-------|------------|
-| Firmware | C++ / Arduino on ESP32 |
-| Motion sensor | MPU-6050 (I2C) |
-| Message broker | Mosquitto (MQTT) |
-| Ingestion | Python |
-| Local store | SQLite |
-| Cloud store | Supabase (Postgres) |
-| Realtime | Supabase Realtime (`postgres_changes`) |
-| Dashboard | Next.js 14, TypeScript, Tailwind CSS |
-| Rate limiting | Upstash Redis |
-| Hosting | Vercel |
+1. Start a Mosquitto-compatible broker reachable by the ESP32 devices and ingestion host.
+2. Follow the [firmware setup](firmware/README.md) for hardware and credentials. The repository does not yet encode a reproducible firmware toolchain.
+3. Follow the [ingestion setup](ingestion/README.md) to install Python dependencies, configure credentials, and run the subscriber.
+4. Follow the [dashboard setup](dashboard/README.md) to configure Supabase/Upstash and start the web application.
+
+Do not commit `.env` files, firmware `secrets.h` files, local databases, or generated build output.
+
+## Engineering documentation
+
+- [Documentation index](docs/README.md)
+- [System architecture](docs/architecture.md)
+- [Current MQTT contract](docs/contracts/mqtt.md)
+- [Data model and session behavior](docs/data-model.md)
+- [Testing and verification](docs/testing.md)
+
+Coding agents should also read the root [`AGENTS.md`](AGENTS.md) and the nearest scoped AGENTS file before modifying code.
