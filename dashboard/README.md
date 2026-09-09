@@ -1,102 +1,92 @@
-# BusyBoard Dashboard
+# BusyBoard dashboard
 
-Next.js read-only dashboard for the BusyBoard system. Renders live hardware state, device status, session history, and per-session audit logs sourced from Supabase.
+The dashboard is a Next.js/React application that renders BusyBoard device status, switch state, session history, and per-session event rows from Supabase.
 
 **Live:** [busyboard-telemetry.vercel.app](https://busyboard-telemetry.vercel.app/)
 
----
+The application does not read SQLite. See [the architecture documentation](../docs/architecture.md) and [data model](../docs/data-model.md) for cross-system behavior.
 
-## File Structure
+## Requirements and environment
 
-```
-dashboard/
-└── src/
-    ├── app/
-    │   ├── api/sessions/
-    │   │   ├── route.ts             # GET /api/sessions: paginated list
-    │   │   └── [id]/route.ts        # GET /api/sessions/:id: session + audit rows
-    │   ├── layout.tsx               # Root layout, bootstraps RealtimeProvider
-    │   ├── page.tsx                 # Shell, selected-session state, URL sync
-    │   └── globals.css
-    ├── components/
-    │   ├── layout/
-    │   │   ├── Topbar.tsx           # Logo and connection status
-    │   │   └── HardwareState.tsx    # Switch grid + device list banner
-    │   ├── switches/SwitchGrid.tsx  # Live read-only switch state
-    │   ├── devices/DeviceList.tsx   # Online/offline device status
-    │   ├── sessions/
-    │   │   ├── SessionList.tsx      # Searchable, paginated index
-    │   │   └── SessionItem.tsx      # Individual session row
-    │   └── events/
-    │       ├── EventPanel.tsx       # Fetches + renders selected session
-    │       ├── EventStats.tsx       # Header and stat strip
-    │       └── EventTable.tsx       # Chronological audit table
-    ├── context/
-    │   └── RealtimeContext.tsx      # Shared Supabase Realtime channel
-    ├── lib/
-    │   ├── supabase.ts              # Browser client
-    │   ├── supabase-server.ts       # Server client for API routes
-    │   ├── utils.ts                 # Timestamp formatting, gap calculation
-    │   └── styles.ts                # Shared Tailwind design tokens
-    ├── types/index.ts               # Shared TypeScript types
-    └── middleware.ts                # Upstash rate limiting on /api
+Install dependencies from the lockfile:
+
+```bash
+npm ci
 ```
 
----
+Create a local gitignored `.env.local` containing:
 
-## Stack
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL used by browser and server clients |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anonymous Supabase key used by browser and server clients |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint for API rate limiting |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
 
-| Layer | Detail |
-|-------|--------|
-| Framework | Next.js 14 (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS |
-| Data | Supabase (Postgres) |
-| Realtime | Supabase Realtime via `postgres_changes` |
-| Rate limiting | Upstash Redis sliding window |
-| Hosting | Vercel |
+Do not put a Supabase service-role key in `NEXT_PUBLIC_*` variables.
 
----
+## Commands
 
-## Views
+Run from `dashboard/`:
 
-| Component | Source | Behavior |
-|-----------|--------|----------|
-| Switch grid | Latest `switch_events` per switch | Seeded on load, live-updated via Realtime |
-| Device list | `devices` table | Online/offline reflects ingestion server status updates |
-| Session list | `/api/sessions` | Paginated, searchable by ID/date/time, filters empty sessions, new sessions prepend live |
-| Event table | `/api/sessions/:id` | Chronological per-session audit; live rows prepend without refresh |
+```bash
+npm run dev
+npx tsc --noEmit --incremental false
+npm run build
+npm start
+```
 
-The event table shows absolute timestamp, relative offset from session start, device, event type, value, and gap since the previous event. Gaps over 60 seconds are highlighted.
+There is currently no repository-defined dashboard test or lint script.
 
----
+## Structure
 
-## Realtime
+```text
+src/
+├── app/
+│   ├── api/sessions/       session list/detail API routes
+│   ├── layout.tsx          device seed and Realtime provider
+│   └── page.tsx            dashboard shell and selected-session URL state
+├── components/
+│   ├── devices/            device presence
+│   ├── events/             selected-session stats and rows
+│   ├── layout/             top bar and hardware state
+│   ├── sessions/           session list and items
+│   └── switches/           live switch grid
+├── context/                shared Supabase Realtime channel
+├── lib/                    Supabase clients, styles, and formatting helpers
+├── types/                  hand-written database and app types
+└── middleware.ts           Upstash-backed API rate limiting
+```
 
-A single Supabase Realtime channel is created in `RealtimeContext` and shared across the app. Components subscribe to specific tables (`switch_events`, `devices`, `sessions`) without opening their own connections.
+## Data flow and views
 
----
+| View | Current source and behavior |
+|---|---|
+| Device list | Server-seeded from `devices`, then updated by device Realtime inserts/updates |
+| Switch grid | Seeded from newest `switch_events` per switch name, then updated by switch inserts |
+| Session list | Paginated `/api/sessions` results; UI search filters only sessions already loaded |
+| Event table | `/api/sessions/{id}` combines switch rows with session start/end events |
 
-## Read-Only by Design
+A single browser Realtime channel listens to `devices`, `switch_events`, and `events`. It does not directly subscribe to the `sessions` table. The current switch grid is one shared set keyed by switch name.
 
-The dashboard never writes to the database. The browser uses the Supabase **anon key** with Row Level Security enforcing read-only access at the database level. The service role key stays on the ingestion server.
+## API routes
 
----
+| Route | Response |
+|---|---|
+| `GET /api/sessions` | Paginated session summaries; optional server-side session-ID search |
+| `GET /api/sessions/{id}` | Session summary and selected session audit rows |
 
-## API Routes
+The detail route currently accepts only 14-digit session IDs. API middleware applies an Upstash sliding-window rate limit.
 
-| Route | Returns |
-|-------|---------|
-| `GET /api/sessions` | Paginated session index with search params |
-| `GET /api/sessions/:id` | Session metadata + full audit rows |
+## Data-access assumptions
 
-Both routes pass through `middleware.ts`, which applies a 60 req/min per-IP limit via Upstash Redis.
+The dashboard is intended to be read-only and uses the Supabase anonymous key. Deployments must configure Row Level Security for anonymous reads, protection against anonymous writes, and Realtime publication. Supabase provisioning is managed outside this repository.
 
----
+## Verification
 
-## Related Components
+```bash
+npx tsc --noEmit --incremental false
+npm run build
+```
 
-| Component | Role | Dir |
-|-----------|------|------|
-| BusyBoard Firmware | Publishes events that populate the dashboard | [`Link`](../firmware/Busyboard/README.md) |
-| Ingestion Server | Writes the data this dashboard reads | [`Link`](../ingestion/README.md) |
+See [testing and verification](../docs/testing.md) for current checks and cross-system verification.
