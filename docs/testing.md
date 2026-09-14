@@ -7,12 +7,56 @@ This document records the current verification commands and the checks expected 
 Run from `ingestion/`:
 
 ```bash
-python -m pytest
+python -m pytest -ra
 ```
 
-The suite covers timestamp/JSON/topic helpers, payload validators, routing, SQLite repositories against a temporary database, and local handler/session behavior.
+The default suite covers helpers, validators, routing, SQLite repositories, local/cloud handler boundaries, and the cloud publisher using fake connections. Postgres tests are marked `postgres` and skipped unless explicitly enabled. A skip does not verify cloud SQL.
 
-Changes to cloud publication or Postgres repositories require focused verification of those paths in addition to the local suite.
+Test collection imports application configuration with dotenv loading disabled and empty application credentials. Each test uses temporary SQLite storage, resets publisher state, and blocks ordinary Postgres connections. Only the explicit integration fixture can connect to the disposable database below. No broker, application environment file, or local telemetry database is needed.
+
+### Focused regression checks
+
+From `ingestion/`:
+
+```bash
+python -m pytest tests/test_cloud_publisher.py tests/test_cloud_handlers.py -v
+```
+
+These tests characterize current behavior, including its limitations: disabled startup publication, failed writes being dropped, local commit before enqueue, local rollback, reconnection on the next queued job, and repeated receipts producing distinct writes. Worker tests drain a finite queue synchronously; they do not leave background threads running or sleep. They do not implement or verify durable replay.
+
+### Disposable Postgres integration checks
+
+Start Docker Desktop's Linux engine, then launch a dedicated disposable instance (the command works in PowerShell and POSIX shells):
+
+```bash
+docker run --detach --rm --name busyboard-test-postgres --publish 127.0.0.1:55432:5432 --env POSTGRES_USER=busyboard_test --env POSTGRES_DB=busyboard_test --env POSTGRES_HOST_AUTH_METHOD=trust postgres:16
+docker exec busyboard-test-postgres pg_isready -U busyboard_test -d busyboard_test
+```
+
+Run the readiness command again if necessary, until it reports accepting connections. This instance deliberately uses passwordless authentication for disposable test data and exposes its port only on the host loopback interface. Do not reuse it for real telemetry or deploy this configuration. No persistent volume is attached. An existing container with this name should be inspected before reuse, not automatically replaced.
+
+From `ingestion/`, run the SQL checks and then the complete suite:
+
+```bash
+python -m pytest tests/test_supabase_repositories.py --postgres -v
+python -m pytest --postgres -ra
+```
+
+The fixture connects only to `127.0.0.1`, database/user `busyboard_test`, default port `55432`. For a port conflict, change the published host port and pass the same value with `--postgres-port`. It ignores libpq environment defaults and password files and never falls back to the application cloud connection. With `--postgres`, an unavailable database is a test failure, not a skip.
+
+Each integration test creates a uniquely named schema, sets its connections' search path to that schema, and closes its connections and removes only that schema on teardown. The schema fixture is test-only evidence for repository SQL, not a production migration or verification of deployed Supabase provisioning.
+
+Checks exercise real Postgres transactions, foreign keys, JSONB, timestamp conversion, lifecycle/count guards, handler-to-cloud delivery, lost-parent rollback, repeated delivery, and representative dashboard query fields. They do not exercise PostgREST relationship expansion, browser behavior, RLS, Supabase Realtime, deployment triggers, or hardware.
+
+After the test run, stop the dedicated container; `--rm` removes the container and its disposable data:
+
+```bash
+docker stop busyboard-test-postgres
+```
+
+### Windows notes
+
+If Python is not activated in this checkout, invoke the existing root environment from `ingestion/` as `..\.venv\Scripts\python.exe -m pytest` with the same options. If the default pytest temporary location is inaccessible, use a fresh throwaway path with `--basetemp` and optionally disable cache writes with `-p no:cacheprovider`. Pytest deletes an existing base-temp directory; never select a directory containing user data.
 
 ## Dashboard
 

@@ -59,10 +59,19 @@ The detailed session lifecycle and local/cloud differences are documented in [th
 Run from `ingestion/`:
 
 ```bash
-python -m pytest
+python -m pytest -ra
 ```
 
-Tests cover helpers, validation, routing, SQLite repositories, and local handlers. They do not verify the cloud publisher, Postgres repositories, a real broker, or live Supabase behavior. See [testing and verification](../docs/testing.md).
+The default suite covers helpers, validation, routing, temporary SQLite repositories, handler transaction boundaries, and cloud-publisher behavior using fake connections. It disables application environment loading and isolates publisher/database state.
+
+Real Postgres tests are opt-in and use a dedicated local disposable database. Follow [the setup and verification commands](../docs/testing.md#disposable-postgres-integration-checks), then run:
+
+```bash
+python -m pytest tests/test_supabase_repositories.py --postgres -v
+python -m pytest --postgres -ra
+```
+
+Without `--postgres`, those tests report skips. With it, an unavailable test database fails the run. These tests do not verify a real broker, browser, live Supabase policies, or Realtime. See [testing and verification](../docs/testing.md) for focused commands and boundaries.
 
 ## Persistence workflow
 
