@@ -33,7 +33,7 @@ There is not yet a one-command full-system development environment. Set up the c
 1. Start a Mosquitto-compatible broker reachable by the ESP32 devices and ingestion host.
 2. Follow the [firmware setup](firmware/README.md) for hardware and credentials. The repository does not yet encode a reproducible firmware toolchain.
 3. Follow the [ingestion setup](ingestion/README.md) to install Python dependencies, configure credentials, and run the subscriber.
-4. Follow the [dashboard setup](dashboard/README.md) to configure Supabase/Upstash and start the web application.
+4. Follow the [dashboard setup](dashboard/README.md) to configure Supabase and the Vercel deployment, then start the web application.
 
 Do not commit `.env` files, firmware `secrets.h` files, local databases, or generated build output.
 
