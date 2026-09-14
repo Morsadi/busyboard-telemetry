@@ -20,8 +20,6 @@ Create a local gitignored `.env.local` containing:
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL used by browser and server clients |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anonymous Supabase key used by browser and server clients |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint for API rate limiting |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
 
 Do not put a Supabase service-role key in `NEXT_PUBLIC_*` variables.
 
@@ -55,7 +53,6 @@ src/
 ├── context/                shared Supabase Realtime channel
 ├── lib/                    Supabase clients, styles, and formatting helpers
 ├── types/                  hand-written database and app types
-└── middleware.ts           Upstash-backed API rate limiting
 ```
 
 ## Data flow and views
@@ -76,7 +73,7 @@ A single browser Realtime channel listens to `devices`, `switch_events`, and `ev
 | `GET /api/sessions` | Paginated session summaries; optional server-side session-ID search |
 | `GET /api/sessions/{id}` | Session summary and selected session audit rows |
 
-The detail route currently accepts only 14-digit session IDs. API middleware applies an Upstash sliding-window rate limit.
+The detail route currently accepts only 14-digit session IDs. Deployed API traffic is rate limited by the Vercel Firewall; local development has no application-level rate limiter.
 
 ## Data-access assumptions
 

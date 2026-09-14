@@ -17,6 +17,6 @@ This directory contains engineering references shared across BusyBoard subsystem
 - The tracked [`ingestion/schema.sql`](../ingestion/schema.sql) defines the SQLite schema.
 - Local installation and run commands belong in subsystem READMEs.
 - Safe modification rules and verification expectations belong in AGENTS files.
-- Deployment-specific Supabase, Vercel, Upstash, and broker configuration is managed outside this repository unless a tracked configuration file says otherwise.
+- Deployment-specific Supabase, Vercel, and broker configuration is managed outside this repository unless a tracked configuration file says otherwise.
 
 The documents describe the current implementation. Future designs should be documented after the corresponding behavior is implemented or an architectural decision is accepted.

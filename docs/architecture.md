@@ -82,7 +82,7 @@ A deployed instance must provide:
 - a Supabase/Postgres schema compatible with ingestion and dashboard queries;
 - Supabase anonymous read policies and protection against anonymous writes;
 - Realtime publication for the tables used by the browser;
-- Upstash Redis configuration for dashboard API rate limiting;
+- Vercel Firewall rate-limit configuration for dashboard API traffic;
 - Vercel/dashboard and ingestion-host environment configuration.
 
 These services are configured outside the repository's local source tree.
