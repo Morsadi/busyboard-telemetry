@@ -1,10 +1,14 @@
 import json
+import os
 import queue
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import dotenv
 import psycopg2
+from psycopg2 import sql
+from psycopg2.extras import RealDictCursor
 import pytest
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -22,6 +26,25 @@ with pytest.MonkeyPatch.context() as isolation:
 
 import db
 import cloud_publisher
+
+_postgres_connect = psycopg2.connect
+
+
+def pytest_addoption(parser):
+    parser.addoption("--postgres", action="store_true", help="Run disposable local Postgres tests")
+    parser.addoption("--postgres-port", type=int, default=55432, help="Local test Postgres port")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "postgres: requires an explicitly enabled local test Postgres")
+
+
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--postgres"):
+        skip = pytest.mark.skip(reason="Use --postgres to run disposable Postgres integration tests")
+        for item in items:
+            if "postgres" in item.keywords:
+                item.add_marker(skip)
 
 
 @pytest.fixture(autouse=True)
@@ -116,3 +139,69 @@ def conn(test_db):
     connection = db.get_connection()
     yield connection
     connection.close()
+
+
+@pytest.fixture
+def pg_connect(request, monkeypatch):
+    """Only the explicit, loopback-only disposable database can be used here."""
+    if not request.config.getoption("--postgres"):
+        pytest.skip("Use --postgres to enable the disposable database")
+    port = request.config.getoption("--postgres-port")
+    if not 1024 <= port <= 65535:
+        pytest.fail("--postgres-port must be between 1024 and 65535", pytrace=False)
+
+    # Do not inherit libpq services, passwords, options, or credential files.
+    for name in tuple(os.environ):
+        if name.startswith("PG"):
+            monkeypatch.delenv(name)
+    settings = dict(
+        host="127.0.0.1", port=port, dbname="busyboard_test", user="busyboard_test",
+        password="", passfile=os.devnull, connect_timeout=3,
+        options="-c statement_timeout=5000 -c lock_timeout=2000",
+        cursor_factory=RealDictCursor,
+    )
+    try:
+        admin = _postgres_connect(**settings)
+    except psycopg2.Error:
+        admin = None
+    if admin is None:
+        pytest.fail("Disposable Postgres unavailable; follow docs/testing.md setup", pytrace=False)
+    admin.autocommit = True
+    schema = "busyboard_test_" + uuid4().hex
+    connections = []
+    created = False
+    try:
+        with admin.cursor() as cur:
+            cur.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+        created = True
+
+        def connect():
+            connection = _postgres_connect(**settings)
+            connections.append(connection)
+            with connection.cursor() as cur:
+                cur.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+            connection.commit()
+            return connection
+
+        setup = connect()
+        # Test fixture only: executable evidence for repository SQL, not a
+        # production schema/migration or a copy of local deployment settings.
+        from postgres_schema import POSTGRES_SCHEMA
+        with setup:
+            with setup.cursor() as cur:
+                cur.execute(POSTGRES_SCHEMA)
+        yield connect
+    finally:
+        for connection in connections:
+            connection.close()
+        try:
+            if created:
+                with admin.cursor() as cur:
+                    cur.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
+        finally:
+            admin.close()
+
+
+@pytest.fixture
+def pg_conn(pg_connect):
+    return pg_connect()
